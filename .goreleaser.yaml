@@ -29,7 +29,7 @@ archives:
     name_template: "tube_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
-    formats_overrides:
+    format_overrides:
       - goos: windows
         formats:
           - zip
