@@ -1,0 +1,63 @@
+# Docker Compose for tube testing
+# Usage: docker compose -f docker-compose.test.yml up --build
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      # Mount source for live development (optional)
+      - .:/app:ro
+      # Named volume for go cache
+      - go-cache:/go/pkg/mod
+    environment:
+      - TUBE_TEST_MODE=1
+      - GO111MODULE=on
+    # Run all tests by default
+    command: go test -v -race -cover ./...
+
+  # Unit tests only (fast)
+  unit:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - .:/app:ro
+      - go-cache:/go/pkg/mod
+    environment:
+      - TUBE_TEST_MODE=1
+    command: go test -v -short ./...
+
+  # Integration tests (requires root for services)
+  integration:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    user: root
+    privileged: true
+    volumes:
+      - .:/app:ro
+      - go-cache:/go/pkg/mod
+    environment:
+      - TUBE_TEST_MODE=1
+      - TUBE_INTEGRATION_TESTS=1
+    command: go test -v -tags=integration ./...
+
+  # Coverage report
+  coverage:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - .:/app:ro
+      - go-cache:/go/pkg/mod
+      - ./coverage:/coverage
+    environment:
+      - TUBE_TEST_MODE=1
+    command: >
+      sh -c "go test -coverprofile=/coverage/coverage.out ./... &&
+             go tool cover -html=/coverage/coverage.out -o /coverage/coverage.html"
+
+volumes:
+  go-cache:

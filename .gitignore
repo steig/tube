@@ -1,0 +1,65 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace file
+go.work
+
+# Build artifacts
+/bin
+/dist
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# Air - live reload
+tmp/
+
+# Development
+.air.toml.local
+.env.local
+
+# Nix
+result
+result-*
+.dirlocals
+.direnv/
+
+# Logs
+*.log
+
+# AI/Claude development framework
+.ai/
+.claude/
+
+# Development planning docs (internal use)
+GAP_ANALYSIS.md
+IMPLEMENTATION_ROADMAP.md
+NEXT_STEPS.md
+PROJECT_STATE.md
+README_ANALYSIS.md
+todo.md
+
+# Local overrides
+*.local
+.envrc.local
+
+# Coverage
+coverage/

@@ -1,0 +1,123 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: tube
+    main: ./cmd/tube
+    binary: tube
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.Commit={{.Commit}}
+      - -X main.Date={{.CommitDate}}
+
+archives:
+  - id: tube
+    name_template: "tube_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CONTRIBUTING.md
+      - docs/*
+      - scripts/install.sh
+
+brews:
+  - name: tube
+    repository:
+      owner: steig
+      name: homebrew-tube
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/steig/tube
+    description: Local development proxy with .test domains and Cloudflare tunnels
+    license: MIT
+    install: |
+      bin.install "tube"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/tube --version")
+
+dockers:
+  - image_templates:
+      - "ghcr.io/steig/tube:{{ .Version }}"
+      - "ghcr.io/steig/tube:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Local development proxy"
+      - "--label=org.opencontainers.image.url=https://github.com/steig/tube"
+      - "--label=org.opencontainers.image.source=https://github.com/steig/tube"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+
+nfpms:
+  - id: tube
+    package_name: tube
+    vendor: Steig Sørensen
+    homepage: https://github.com/steig/tube
+    maintainer: Steig Sørensen <steig@example.com>
+    description: Local development proxy with .test domains and Cloudflare tunnels
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/local/bin
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/tube/README.md
+      - src: ./LICENSE
+        dst: /usr/share/doc/tube/LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  prerelease: auto
+  footer: |
+    ## Installation
+
+    ### Homebrew
+    ```bash
+    brew tap steig/tube
+    brew install tube
+    ```
+
+    ### From Binary
+    Download the appropriate binary for your platform above.
+
+    ### From Source
+    ```bash
+    git clone https://github.com/steig/tube.git
+    cd tube
+    nix develop
+    just build
+    just install
+    ```
