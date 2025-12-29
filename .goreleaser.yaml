@@ -38,20 +38,22 @@ archives:
       - LICENSE
       - CONTRIBUTING.md
 
-brews:
-  - name: tube
-    repository:
-      owner: steig
-      name: homebrew-tube
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: https://github.com/steig/tube
-    description: Local development proxy with .test domains and Cloudflare tunnels
-    license: MIT
-    install: |
-      bin.install "tube"
-    test: |
-      assert_match version.to_s, shell_output("#{bin}/tube --version")
+# Homebrew tap publishing disabled until homebrew-tube repo is created
+# and HOMEBREW_TAP_TOKEN secret is configured
+# brews:
+#   - name: tube
+#     repository:
+#       owner: steig
+#       name: homebrew-tube
+#       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+#     directory: Formula
+#     homepage: https://github.com/steig/tube
+#     description: Local development proxy with .test domains and Cloudflare tunnels
+#     license: MIT
+#     install: |
+#       bin.install "tube"
+#     test: |
+#       assert_match version.to_s, shell_output("#{bin}/tube --version")
 
 nfpms:
   - id: tube
