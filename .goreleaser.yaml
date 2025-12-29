@@ -34,8 +34,6 @@ archives:
       - README.md
       - LICENSE
       - CONTRIBUTING.md
-      - docs/*
-      - scripts/install.sh
 
 brews:
   - name: tube
