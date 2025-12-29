@@ -1,3 +1,5 @@
+//go:build darwin
+
 // Package gui provides the graphical user interface components for tube
 package gui
 

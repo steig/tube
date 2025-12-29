@@ -1,3 +1,5 @@
+//go:build darwin
+
 // tube-gui is the graphical interface for tube
 // It provides a system tray icon and web dashboard
 package main
