@@ -19,15 +19,9 @@ linters:
 
 issues:
   exclude-rules:
-    # Exclude errcheck in test files
     - path: _test\.go
       linters:
         - errcheck
-    # Exclude gui package (macOS only, different lint context)
     - path: internal/gui/
-      linters:
-        - errcheck
-    # Exclude cmd/tube-gui (macOS only)
-    - path: cmd/tube-gui/
       linters:
         - errcheck
