@@ -191,16 +191,19 @@ func ListProjects(cfg *config.Config) ([]ProjectStatus, error) {
 		}
 
 		// Handle LocalDomain with or without leading dot
-		domain := cfg.Proxy.LocalDomain
-		if strings.HasPrefix(domain, ".") {
-			domain = domain[1:]
+		domain := strings.TrimPrefix(cfg.Proxy.LocalDomain, ".")
+
+		// Use https:// scheme when SSL is enabled
+		scheme := "http"
+		if cfg.SSL.Enabled {
+			scheme = "https"
 		}
 
 		status := ProjectStatus{
 			Name:    name,
 			Port:    port,
 			Running: isListening,
-			LocalURL: fmt.Sprintf("http://%s.%s", name, domain),
+			LocalURL: fmt.Sprintf("%s://%s.%s", scheme, name, domain),
 		}
 
 		statuses = append(statuses, status)

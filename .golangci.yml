@@ -1,0 +1,33 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*os/exec.Cmd).Run
+        - (*os/exec.Cmd).Start
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - os.Setenv
+        - os.Chdir
+        - os.RemoveAll
+
+issues:
+  exclude-rules:
+    # Exclude errcheck in test files
+    - path: _test\.go
+      linters:
+        - errcheck
+    # Exclude gui package (macOS only, different lint context)
+    - path: internal/gui/
+      linters:
+        - errcheck
+    # Exclude cmd/tube-gui (macOS only)
+    - path: cmd/tube-gui/
+      linters:
+        - errcheck

@@ -52,7 +52,7 @@ func main() {
 	go func() {
 		<-sigChan
 		fmt.Println("\nShutting down...")
-		dashboard.Stop()
+		_ = dashboard.Stop()
 		os.Exit(0)
 	}()
 
