@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 )
 
 // knownServices is the canonical list of services tube manages.
@@ -52,25 +51,10 @@ func (pm *ProcessManager) SetServiceConfig(name string, cfg ServiceConfig) {
 	pm.configs[name] = cfg
 }
 
-// withFileLock acquires an exclusive flock on a per-service lock file, runs fn,
-// and releases. This is what serializes Start/Stop *across separate tube
-// processes* — the in-memory mutex only protects one process's goroutines.
-//
-// flock() is advisory and POSIX-only; this works on macOS and Linux.
-func (pm *ProcessManager) withFileLock(name string, fn func() error) error {
-	lockPath := filepath.Join(pm.pidDir, name+".lock")
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to open lock file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		return fmt.Errorf("failed to acquire lock: %w", err)
-	}
-	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
-
-	return fn()
+// lockFilePath returns the path of the per-service lock file used by
+// the platform-specific withFileLock implementations.
+func (pm *ProcessManager) lockFilePath(name string) string {
+	return filepath.Join(pm.pidDir, name+".lock")
 }
 
 // pidFilePath returns the path to the PID file for a service
