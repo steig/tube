@@ -1,0 +1,101 @@
+site_name: tube
+site_description: Local development proxy with .test domains and trusted HTTPS for macOS
+site_url: https://steig.github.io/tube/
+site_author: Tom Steigerwald
+
+repo_url: https://github.com/steig/tube
+repo_name: steig/tube
+edit_uri: edit/main/docs/
+
+copyright: MIT licensed
+
+# requirements.txt lives under docs/ so pip can cache it from the workflow,
+# but we don't want to ship it as part of the rendered site.
+exclude_docs: |
+  requirements.txt
+
+# Fail the build if a relative link or anchor doesn't resolve.
+validation:
+  links:
+    absolute_links: ignore
+    unrecognized_links: warn
+    anchors: warn
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - search.highlight
+    - search.share
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - CLI Reference: cli-reference.md
+  - Configuration: configuration.md
+  - GUI: gui.md
+  - Architecture: architecture.md
+  - Troubleshooting: troubleshooting.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/steig/tube
+      name: tube on GitHub

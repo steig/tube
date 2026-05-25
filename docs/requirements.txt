@@ -1,0 +1,4 @@
+# Build-time deps for the documentation site (mkdocs.yml at repo root).
+# Pinned to a known-good major.minor so deploys are reproducible.
+mkdocs-material>=9.5,<10.0
+pymdown-extensions>=10.7

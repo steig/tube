@@ -258,7 +258,7 @@ You may need to run tube with elevated privileges or configure your system to al
 ## Next Steps
 
 After installation:
-1. [Add your first project](cli-reference.md#adding-projects)
-2. [Start services](cli-reference.md#starting-services)
+1. [Add your first project](cli-reference.md#project-management)
+2. [Start services](cli-reference.md#service-control)
 3. [Configure settings](configuration.md)
 4. [Use the GUI](gui.md)

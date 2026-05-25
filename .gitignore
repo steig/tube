@@ -63,3 +63,8 @@ todo.md
 
 # Coverage
 coverage/
+
+# Docs build output and local venv
+/site
+/_site_test
+.venv-docs/
