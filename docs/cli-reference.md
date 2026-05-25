@@ -346,7 +346,7 @@ tube initialized!
 **What this does:**
 1. Creates `~/.tube/config.yaml` with default settings
 2. Creates required directories:
-   - `~/.tube/configs/` - Generated service configurations
+   - `~/.tube/*.conf` - Generated service configurations
    - `~/.tube/logs/` - Service logs
    - `~/.tube/pids/` - PID files
 
@@ -593,15 +593,15 @@ tube help start
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `TUBE_CONFIG` | Path to config file | `~/.tube/config.yaml` |
-| `TUBE_DEBUG` | Enable debug logging | `false` |
+| `TUBE_<KEY>` | Override any config key (uppercased + underscore-separated) | (per-key default) |
 
 **Examples:**
 ```bash
 # Use a custom config file
 TUBE_CONFIG=/path/to/config.yaml tube list
 
-# Enable debug output
-TUBE_DEBUG=true tube start
+# Override a config key for one invocation
+TUBE_PROXY_DASHBOARD_PORT=3300 tube status
 ```
 
 ---

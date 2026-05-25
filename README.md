@@ -57,6 +57,33 @@ Both HTTP and HTTPS work out of the box with trusted local certificates.
 
 ### 1. Install
 
+The fastest path: a POSIX `sh` install script that detects your OS/arch,
+verifies SHA256 against the published `checksums.txt`, and installs
+`tube` to `/usr/local/bin`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh | sh
+```
+
+Pin a specific version or install without sudo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh \
+  | TUBE_VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh \
+  | TUBE_PREFIX="$HOME/.local" sh
+```
+
+Runtime deps (nginx, dnsmasq, mkcert) aren't installed by the script — grab
+them separately: `brew install nginx dnsmasq mkcert`.
+
+> The release archives ship only the `tube` CLI. `tube-gui` (the macOS
+> menu bar app) needs CGO and isn't in the releases — build it from
+> source if you want the menu bar app.
+
+<details>
+<summary>Build from source instead</summary>
+
 ```bash
 # Clone and build
 git clone https://github.com/steig/tube.git
@@ -66,6 +93,7 @@ make build-all
 # Add to PATH
 sudo cp bin/tube bin/tube-gui /usr/local/bin/
 ```
+</details>
 
 ### 2. Initialize (one-time)
 
@@ -278,7 +306,7 @@ projects:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `TUBE_CONFIG` | Config file path | `~/.tube/config.yaml` |
-| `TUBE_DEBUG` | Enable debug logging | `false` |
+| `TUBE_*` | Any config key, prefixed with `TUBE_` and uppercased | (per-key default) |
 
 ---
 

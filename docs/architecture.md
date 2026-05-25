@@ -112,7 +112,7 @@ This tells macOS: "For any `.test` domain, ask the DNS server at 127.0.0.1"
 
 dnsmasq is a lightweight DNS server that handles wildcard resolution.
 
-**Configuration:** `~/.tube/configs/dnsmasq.conf`
+**Configuration:** `~/.tube/dnsmasq.conf`
 
 ```
 port=53
@@ -136,7 +136,7 @@ address=/.test/127.0.0.1
 
 nginx is a high-performance HTTP server that handles reverse proxying.
 
-**Configuration:** `~/.tube/configs/nginx.conf`
+**Configuration:** `~/.tube/nginx.conf`
 
 ```nginx
 worker_processes 1;
@@ -314,12 +314,12 @@ func FlushDNSCache() error
         ├──► NginxManager.WriteConfig()
         │           │
         │           ▼
-        │    ~/.tube/configs/nginx.conf
+        │    ~/.tube/nginx.conf
         │
         └──► DnsmasqManager.WriteConfig()
                     │
                     ▼
-             ~/.tube/configs/dnsmasq.conf
+             ~/.tube/dnsmasq.conf
 ```
 
 ### Service Lifecycle

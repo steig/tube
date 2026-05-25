@@ -199,7 +199,7 @@ Note: This requires additional configuration for DNS resolution.
 
 **Check nginx configuration:**
 ```bash
-nginx -t -c ~/.tube/configs/nginx.conf
+nginx -t -c ~/.tube/nginx.conf
 ```
 
 **Common errors:**
@@ -210,7 +210,7 @@ nginx -t -c ~/.tube/configs/nginx.conf
 
 **Fix missing directories:**
 ```bash
-mkdir -p ~/.tube/logs ~/.tube/pids ~/.tube/configs
+mkdir -p ~/.tube/logs ~/.tube/pids
 ```
 
 ---
@@ -271,7 +271,7 @@ tube list
 
 **Check nginx config:**
 ```bash
-cat ~/.tube/configs/nginx.conf | grep server_name
+cat ~/.tube/nginx.conf | grep server_name
 ```
 
 ---
@@ -396,12 +396,6 @@ xcode-select --install
 ---
 
 ## Getting More Help
-
-### Enable Debug Logging
-
-```bash
-TUBE_DEBUG=true tube start
-```
 
 ### Check Service Logs
 
