@@ -118,7 +118,7 @@ func tailFile(w io.Writer, path string, lines int, follow bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.Seek(0, io.SeekEnd); err != nil {
 		return fmt.Errorf("failed to seek %s: %w", path, err)
@@ -159,7 +159,7 @@ func printLastLines(w io.Writer, path string, n int) error {
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	fi, err := f.Stat()
 	if err != nil {

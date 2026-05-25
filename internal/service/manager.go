@@ -63,12 +63,12 @@ func (pm *ProcessManager) withFileLock(name string, fn func() error) error {
 	if err != nil {
 		return fmt.Errorf("failed to open lock file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
 
 	return fn()
 }
