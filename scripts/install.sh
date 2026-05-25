@@ -201,9 +201,18 @@ if [ -n "$SHA256" ]; then
 fi
 
 info "Extracting"
-tar -C "$TMPDIR" -xzf "$TMPDIR/$ARCHIVE" tube
+# Extract the whole archive — older archives shipped tube only, newer darwin
+# archives also include tube-gui. The two `tar t` lookups below decide which
+# binaries we actually install.
+tar -C "$TMPDIR" -xzf "$TMPDIR/$ARCHIVE"
 [ -f "$TMPDIR/tube" ] || fail "archive did not contain a 'tube' binary"
 chmod +x "$TMPDIR/tube"
+
+HAS_GUI=0
+if [ -f "$TMPDIR/tube-gui" ]; then
+    chmod +x "$TMPDIR/tube-gui"
+    HAS_GUI=1
+fi
 
 # Decide whether we need sudo. Try a no-op write to the target dir; if it
 # fails, fall back to sudo. Skip the elevated path entirely when --yes is set
@@ -229,6 +238,12 @@ $SUDO chmod 0755 "$INSTALL_DIR/tube"
 
 success "Installed tube $VERSION to $INSTALL_DIR/tube"
 
+if [ "$HAS_GUI" -eq 1 ]; then
+    $SUDO mv "$TMPDIR/tube-gui" "$INSTALL_DIR/tube-gui"
+    $SUDO chmod 0755 "$INSTALL_DIR/tube-gui"
+    success "Installed tube-gui to $INSTALL_DIR/tube-gui"
+fi
+
 # Sanity: verify the binary on PATH matches what we just wrote.
 if ! command -v tube >/dev/null 2>&1; then
     warn "tube is installed but not on PATH. Add this to your shell rc:"
@@ -253,6 +268,17 @@ ${BOLD}Next steps:${RESET}
   4. Add a project and start services:
        ${DIM}tube add myapp 3000${RESET}
        ${DIM}tube start${RESET}
+EOF
+
+if [ "$HAS_GUI" -eq 1 ]; then
+    cat <<EOF
+
+  5. Launch the menu bar app (optional):
+       ${DIM}tube-gui &${RESET}
+EOF
+fi
+
+cat <<EOF
 
   Check status anytime with: ${DIM}tube doctor${RESET}
   Docs: ${BLUE}https://steig.github.io/tube/${RESET}

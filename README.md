@@ -77,9 +77,8 @@ curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh 
 Runtime deps (nginx, dnsmasq, mkcert) aren't installed by the script — grab
 them separately: `brew install nginx dnsmasq mkcert`.
 
-> The release archives ship only the `tube` CLI. `tube-gui` (the macOS
-> menu bar app) needs CGO and isn't in the releases — build it from
-> source if you want the menu bar app.
+> On macOS the install script also drops `tube-gui` (menu bar app)
+> alongside `tube`. Run `tube-gui &` after installing.
 
 <details>
 <summary>Build from source instead</summary>

@@ -6,6 +6,7 @@ before:
     - go generate ./...
 
 builds:
+  # CLI binary — pure Go, cross-compiles cleanly to every target.
   - id: tube
     main: ./cmd/tube
     binary: tube
@@ -24,9 +25,31 @@ builds:
       - -X main.Commit={{.Commit}}
       - -X main.Date={{.CommitDate}}
 
+  # GUI (menu bar app) — needs CGO for the systray Objective-C bindings, so
+  # it's darwin-only and the release workflow has to run on a macOS runner.
+  - id: tube-gui
+    main: ./cmd/tube-gui
+    binary: tube-gui
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
 archives:
   - id: tube
     name_template: "tube_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Include both binaries when present. goreleaser packs every output of the
+    # listed builds into the archive that matches goos/goarch — so linux and
+    # windows archives stay tube-only (since tube-gui has no build for them),
+    # while darwin archives get both.
+    builds:
+      - tube
+      - tube-gui
     formats:
       - tar.gz
     format_overrides:
@@ -136,8 +159,7 @@ release:
     sudo cp bin/tube bin/tube-gui /usr/local/bin/
     ```
 
-    > **Note:** the GUI binary (`tube-gui`) is not in the release archives — it
-    > needs CGO for the macOS systray bindings, while these releases are built
-    > with `CGO_ENABLED=0`. Build it from source if you want the menu bar app.
+    > **macOS menu bar app:** darwin archives now include `tube-gui` alongside
+    > `tube`. Run `tube-gui` after installing for the menu bar icon.
 
     Full docs: <https://steig.github.io/tube/>

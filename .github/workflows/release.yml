@@ -16,7 +16,10 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # macOS runner so we can build tube-gui (CGO + Objective-C systray) natively.
+    # Linux and windows binaries still come from this same job via cross-compile
+    # with CGO_ENABLED=0 — the CLI is pure Go.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:

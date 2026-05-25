@@ -41,10 +41,9 @@ You'll still need `nginx`, `dnsmasq`, and `mkcert` installed separately
 (`brew install nginx dnsmasq mkcert`). The install script intentionally
 doesn't touch your package manager.
 
-!!! note "GUI binary"
-    The install script ships only the `tube` CLI. `tube-gui` (the macOS menu
-    bar app) needs CGO and isn't part of the release archives — build it from
-    source if you want the menu bar app.
+!!! note "macOS menu bar app"
+    On darwin the install script also installs `tube-gui` (the menu bar
+    app) alongside `tube`. Run `tube-gui &` to launch it.
 
 ### From source with Homebrew
 
