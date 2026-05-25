@@ -9,6 +9,11 @@ on:
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
+# Opt in to Node.js 24 for JavaScript actions ahead of the 2026-06-02
+# default switchover. Harmless once that date passes.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 # Permissions required by actions/deploy-pages.
 permissions:
   contents: read

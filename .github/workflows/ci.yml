@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Opt in to Node.js 24 for JavaScript actions ahead of the 2026-06-02
+# default switchover. Harmless once that date passes.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
