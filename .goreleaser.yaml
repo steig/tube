@@ -50,6 +50,9 @@ archives:
     builds:
       - tube
       - tube-gui
+    # darwin archives intentionally contain 2 binaries, linux/windows just 1.
+    # Without this opt-in goreleaser refuses asymmetric archives.
+    allow_different_binary_count: true
     formats:
       - tar.gz
     format_overrides:
