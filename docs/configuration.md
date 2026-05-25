@@ -14,8 +14,14 @@ TUBE_CONFIG=/path/to/config.yaml tube list
 
 ## Full Configuration Example
 
+!!! warning "Cloudflare Tunnel is not yet implemented"
+    The `domain`, `tunnel_prefix`, and `tunnel:` fields below describe a
+    planned feature. They round-trip through the config file but have no
+    runtime effect. See [Architecture › Planned: Cloudflare Tunnel](architecture.md#planned-cloudflare-tunnel)
+    for the intended design.
+
 ```yaml
-# Domain settings (for future Cloudflare tunnel support)
+# Domain settings (reserved for planned Cloudflare tunnel support)
 domain: example.com
 tunnel_prefix: dev-
 
@@ -43,9 +49,9 @@ dnsmasq:
   binary: dnsmasq            # Path to dnsmasq binary
   port: 53                   # DNS port
 
-# Cloudflare Tunnel settings (future)
+# Cloudflare Tunnel settings (not yet implemented)
 tunnel:
-  enabled: "false"
+  enabled: false
   binary: cloudflared
   name: tube-tunnel
 
@@ -90,6 +96,10 @@ projects:
 
 ### Domain Settings
 
+!!! warning "Not yet implemented"
+    These fields are reserved for planned Cloudflare Tunnel integration.
+    They are persisted in the config but have no runtime effect today.
+
 ```yaml
 domain: example.com
 tunnel_prefix: dev-
@@ -97,10 +107,8 @@ tunnel_prefix: dev-
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `domain` | string | `example.com` | Base domain for Cloudflare tunnel (future) |
-| `tunnel_prefix` | string | `dev-` | Prefix for tunnel subdomains (future) |
-
-These settings are reserved for future Cloudflare Tunnel integration.
+| `domain` | string | `example.com` | Base domain for Cloudflare tunnel (planned) |
+| `tunnel_prefix` | string | `dev-` | Prefix for tunnel subdomains (planned) |
 
 ---
 
@@ -418,7 +426,7 @@ dnsmasq:
   port: 53
 
 tunnel:
-  enabled: "false"
+  enabled: false
   binary: cloudflared
   name: tube-tunnel
 

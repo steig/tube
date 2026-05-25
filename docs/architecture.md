@@ -419,6 +419,12 @@ Browser ─────► nginx (HTTPS:443)
 
 ### Planned: Cloudflare Tunnel
 
+!!! warning "Not yet implemented"
+    This section describes a design that is not yet shipping. The
+    `TunnelConfig` schema exists in `~/.tube/config.yaml` and `tube init`
+    asks for a tunnel prefix, but no tunnel code is wired up. The
+    config fields round-trip but have no runtime effect.
+
 ```
 Internet ─────► Cloudflare Edge
                     │
