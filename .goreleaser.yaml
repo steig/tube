@@ -93,20 +93,51 @@ release:
   footer: |
     ## Installation
 
-    ### Homebrew
+    ### One-line install script (recommended)
+
+    Detects your OS/arch, verifies the SHA256 against the published
+    `checksums.txt`, and installs `tube` to `/usr/local/bin`:
+
     ```bash
-    brew tap steig/tube
-    brew install tube
+    curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh | sh
     ```
 
-    ### From Binary
-    Download the appropriate binary for your platform above.
+    Pin this release explicitly:
 
-    ### From Source
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh \
+      | TUBE_VERSION={{ .Tag }} sh
+    ```
+
+    Install without sudo (e.g. to `~/.local/bin`):
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh \
+      | TUBE_PREFIX="$HOME/.local" sh
+    ```
+
+    ### Manual download
+
+    Grab the archive for your platform from the assets above and extract the
+    `tube` binary into a directory on your `PATH`. Verify against
+    `checksums.txt` first.
+
+    ### Linux packages
+
+    `.deb`, `.rpm`, and `.apk` packages are published for `amd64` and
+    `arm64` — install with your distro's package manager.
+
+    ### From source
+
     ```bash
     git clone https://github.com/steig/tube.git
     cd tube
-    nix develop
-    just build
-    just install
+    make build-all
+    sudo cp bin/tube bin/tube-gui /usr/local/bin/
     ```
+
+    > **Note:** the GUI binary (`tube-gui`) is not in the release archives — it
+    > needs CGO for the macOS systray bindings, while these releases are built
+    > with `CGO_ENABLED=0`. Build it from source if you want the menu bar app.
+
+    Full docs: <https://steig.github.io/tube/>
