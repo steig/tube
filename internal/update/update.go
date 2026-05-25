@@ -168,7 +168,7 @@ func fetchLatestFromGitHub(repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	loc := resp.Header.Get("Location")
 	if loc == "" {

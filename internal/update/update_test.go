@@ -163,9 +163,20 @@ func TestCheck_NoCacheFirstRun(t *testing.T) {
 	tmp := t.TempDir()
 	cachePath := filepath.Join(tmp, "cache.json")
 
+	done := make(chan struct{})
 	orig := fetchLatest
-	fetchLatest = func(string) (string, error) { return "v0.9.0", nil }
-	t.Cleanup(func() { fetchLatest = orig })
+	fetchLatest = func(string) (string, error) {
+		// Defer signaling so the cache write inside Check's goroutine has
+		// completed before the test cleanup tears down TempDir. Without
+		// this, on Go 1.22 the goroutine writes after t.TempDir's cleanup
+		// runs, leaving the dir non-empty and failing the test.
+		defer close(done)
+		return "v0.9.0", nil
+	}
+	t.Cleanup(func() {
+		<-done
+		fetchLatest = orig
+	})
 
 	r, err := Check("0.2.0", cachePath)
 	if err != nil {
@@ -175,5 +186,12 @@ func TestCheck_NoCacheFirstRun(t *testing.T) {
 	// will populate for next time.
 	if r.Latest != "" || r.Newer {
 		t.Errorf("first run returned %+v, want empty Latest", r)
+	}
+
+	// Wait for the goroutine before the test returns so cleanup can drain.
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background refresh did not run within 2s")
 	}
 }
