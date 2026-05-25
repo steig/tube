@@ -18,12 +18,13 @@ type CertManager struct {
 	certsDir   string
 }
 
-// CertInfo holds information about a certificate
+// CertInfo holds information about a certificate.
+// The struct itself describes a cert that exists on disk. Callers check
+// existence via CertManager.CertExists rather than a redundant field.
 type CertInfo struct {
 	Domain   string
 	CertFile string
 	KeyFile  string
-	Exists   bool
 }
 
 // NewCertManager creates a new CertManager
@@ -76,23 +77,24 @@ func (cm *CertManager) IsCAInstalled() bool {
 	return err == nil
 }
 
-// GenerateWildcard generates a wildcard certificate for the given domain
-// e.g., GenerateWildcard("test") creates certs for *.test and test
+// GenerateWildcard generates a wildcard certificate for the given domain.
+// E.g. GenerateWildcard("test") produces certs for *.test and test.
+//
+// The cleanest approach is to pass mkcert -cert-file / -key-file flags so we
+// never have to guess the filename it would have used. Older versions of
+// mkcert support these flags (they were added long ago).
 func (cm *CertManager) GenerateWildcard(domain string) (*CertInfo, error) {
-	// Clean domain (remove leading dot if present)
 	domain = strings.TrimPrefix(domain, ".")
 
-	// Certificate file names
 	certFile := filepath.Join(cm.certsDir, fmt.Sprintf("wildcard.%s.pem", domain))
 	keyFile := filepath.Join(cm.certsDir, fmt.Sprintf("wildcard.%s-key.pem", domain))
 
-	// Generate certificate for wildcard and base domain
-	// mkcert will output to current dir, so we need to rename after
-	wildcardDomain := fmt.Sprintf("*.%s", domain)
-	baseDomain := domain
-
-	// Run mkcert from the certs directory
-	cmd := exec.Command(cm.mkcertPath, wildcardDomain, baseDomain)
+	cmd := exec.Command(cm.mkcertPath,
+		"-cert-file", certFile,
+		"-key-file", keyFile,
+		fmt.Sprintf("*.%s", domain),
+		domain,
+	)
 	cmd.Dir = cm.certsDir
 
 	var stderr bytes.Buffer
@@ -102,26 +104,7 @@ func (cm *CertManager) GenerateWildcard(domain string) (*CertInfo, error) {
 		return nil, fmt.Errorf("failed to generate certificate: %w\n%s", err, stderr.String())
 	}
 
-	// mkcert creates files like "_wildcard.test+1.pem" and "_wildcard.test+1-key.pem"
-	// Find and rename them to our expected names
-	defaultCertName := filepath.Join(cm.certsDir, fmt.Sprintf("_wildcard.%s+1.pem", domain))
-	defaultKeyName := filepath.Join(cm.certsDir, fmt.Sprintf("_wildcard.%s+1-key.pem", domain))
-
-	if err := os.Rename(defaultCertName, certFile); err != nil {
-		// If rename fails, try to find the generated files
-		return nil, fmt.Errorf("failed to rename certificate file: %w", err)
-	}
-
-	if err := os.Rename(defaultKeyName, keyFile); err != nil {
-		return nil, fmt.Errorf("failed to rename key file: %w", err)
-	}
-
-	return &CertInfo{
-		Domain:   domain,
-		CertFile: certFile,
-		KeyFile:  keyFile,
-		Exists:   true,
-	}, nil
+	return &CertInfo{Domain: domain, CertFile: certFile, KeyFile: keyFile}, nil
 }
 
 // GenerateCert generates a certificate for specific domains
@@ -145,12 +128,7 @@ func (cm *CertManager) GenerateCert(name string, domains ...string) (*CertInfo, 
 		return nil, fmt.Errorf("failed to generate certificate: %w\n%s", err, stderr.String())
 	}
 
-	return &CertInfo{
-		Domain:   domains[0],
-		CertFile: certFile,
-		KeyFile:  keyFile,
-		Exists:   true,
-	}, nil
+	return &CertInfo{Domain: domains[0], CertFile: certFile, KeyFile: keyFile}, nil
 }
 
 // GetCertPaths returns the certificate and key paths for the given domain
@@ -175,13 +153,7 @@ func (cm *CertManager) CertExists(domain string) bool {
 func (cm *CertManager) GetCertInfo(domain string) *CertInfo {
 	domain = strings.TrimPrefix(domain, ".")
 	certFile, keyFile := cm.GetCertPaths(domain)
-
-	return &CertInfo{
-		Domain:   domain,
-		CertFile: certFile,
-		KeyFile:  keyFile,
-		Exists:   cm.CertExists(domain),
-	}
+	return &CertInfo{Domain: domain, CertFile: certFile, KeyFile: keyFile}
 }
 
 // ListCerts lists all certificates in the SSL directory
@@ -191,29 +163,24 @@ func (cm *CertManager) ListCerts() ([]CertInfo, error) {
 		return nil, fmt.Errorf("failed to read SSL directory: %w", err)
 	}
 
-	// Find all .pem files (excluding -key.pem)
+	// Find .pem files (excluding -key.pem). Only return certs whose matching
+	// key file is also present — orphaned certs aren't usable.
 	var certs []CertInfo
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasSuffix(name, ".pem") && !strings.HasSuffix(name, "-key.pem") {
-			// Extract domain from filename
-			domain := strings.TrimSuffix(name, ".pem")
-			domain = strings.TrimPrefix(domain, "wildcard.")
-
-			certFile := filepath.Join(cm.certsDir, name)
-			keyFile := filepath.Join(cm.certsDir, strings.TrimSuffix(name, ".pem")+"-key.pem")
-
-			_, keyErr := os.Stat(keyFile)
-
-			certs = append(certs, CertInfo{
-				Domain:   domain,
-				CertFile: certFile,
-				KeyFile:  keyFile,
-				Exists:   keyErr == nil,
-			})
+		if !strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, "-key.pem") {
+			continue
 		}
-	}
+		domain := strings.TrimSuffix(name, ".pem")
+		domain = strings.TrimPrefix(domain, "wildcard.")
 
+		certFile := filepath.Join(cm.certsDir, name)
+		keyFile := filepath.Join(cm.certsDir, strings.TrimSuffix(name, ".pem")+"-key.pem")
+		if _, err := os.Stat(keyFile); err != nil {
+			continue
+		}
+		certs = append(certs, CertInfo{Domain: domain, CertFile: certFile, KeyFile: keyFile})
+	}
 	return certs, nil
 }
 

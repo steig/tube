@@ -141,12 +141,9 @@ func FlushDNSCache() error {
 		return fmt.Errorf("failed to flush DNS cache: %w", err)
 	}
 
-	cmd = exec.Command("sudo", "killall", "-HUP", "mDNSResponder")
-	if err := cmd.Run(); err != nil {
-		// Not critical if this fails
-		return nil
-	}
-
+	// killall -HUP mDNSResponder is best-effort; failures here aren't critical
+	// because dscacheutil -flushcache above already did the meaningful work.
+	_ = exec.Command("sudo", "killall", "-HUP", "mDNSResponder").Run()
 	return nil
 }
 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/getlantern/systray"
 	"github.com/steig/tube/internal/config"
@@ -101,6 +103,20 @@ func (t *TrayApp) onReady() {
 
 	// Handle clicks
 	go t.handleClicks()
+
+	// Refresh status periodically so the tray title stays accurate when the
+	// CLI or dashboard starts/stops services behind our back.
+	go t.refreshLoop()
+}
+
+// refreshLoop polls service status every 5s. Stops when the systray exits
+// (ClickedCh on mQuit fires and onExit triggers process termination).
+func (t *TrayApp) refreshLoop() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		t.updateStatus()
+	}
 }
 
 // onExit is called when the systray is exited
@@ -161,8 +177,14 @@ func (t *TrayApp) updateProjectMenu() {
 		item.Disable()
 		t.projectItems = append(t.projectItems, item)
 	} else {
+		scheme := "http"
+		if t.cfg.SSL.Enabled {
+			scheme = "https"
+		}
+		tld := strings.TrimPrefix(t.cfg.Proxy.LocalDomain, ".")
+
 		for name, port := range t.cfg.Projects {
-			url := fmt.Sprintf("http://%s.test", name)
+			url := fmt.Sprintf("%s://%s.%s", scheme, name, tld)
 			title := fmt.Sprintf("%s :%d", name, port)
 			item := t.mProjects.AddSubMenuItem(title, url)
 			t.projectItems = append(t.projectItems, item)

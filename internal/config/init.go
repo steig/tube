@@ -35,14 +35,15 @@ func InteractiveInit(configPath string) (*Config, error) {
 		return nil, err
 	}
 
-	// Create config with user inputs
-	cfg, err := Load("")
-	if err != nil {
-		// Load defaults if file doesn't exist
-		cfg = &Config{
-			Domain:       domain,
-			TunnelPrefix: prefix,
-			Projects:     make(map[string]int),
+	// Always start from Defaults() so dashboard_port, ssl paths, directories,
+	// etc. have sane values. The previous fallback zero-valued the struct,
+	// which then failed Validate() on the next Load.
+	cfg := Defaults()
+	if existing, err := Load(configPath); err == nil {
+		// Preserve any existing projects map across re-init.
+		cfg.Projects = existing.Projects
+		if cfg.Projects == nil {
+			cfg.Projects = map[string]int{}
 		}
 	}
 

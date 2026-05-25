@@ -4,9 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/steig/tube/internal/config"
-	"github.com/steig/tube/internal/proxy"
-	"github.com/steig/tube/internal/service"
 )
 
 // NewStartCmd creates the start command
@@ -16,57 +13,32 @@ func NewStartCmd() *cobra.Command {
 		Short: "Start tube services (nginx, dnsmasq)",
 		Long:  `Start the tube proxy services.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get config path
-			configPath, _ := cmd.Flags().GetString("config")
-
-			// Load configuration
-			cfg, err := config.Load(configPath)
+			st, err := loadStack(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
-			// Create ProcessManager
-			pm, err := service.NewProcessManager(cfg.Directories.PIDs)
-			if err != nil {
-				return fmt.Errorf("failed to create process manager: %w", err)
-			}
-
-			// Create managers
-			ngx, err := proxy.NewNginxManager(cfg, pm)
-			if err != nil {
-				return fmt.Errorf("failed to create nginx manager: %w", err)
-			}
-
-			dms, err := proxy.NewDnsmasqManager(cfg, pm)
-			if err != nil {
-				return fmt.Errorf("failed to create dnsmasq manager: %w", err)
-			}
-
-			// Write configurations
 			cmd.Println("Generating configurations...")
-			if err := ngx.WriteConfig(); err != nil {
+			if err := st.ngx.WriteConfig(); err != nil {
 				return fmt.Errorf("failed to generate nginx config: %w", err)
 			}
-
-			if err := dms.WriteConfig(); err != nil {
+			if err := st.dms.WriteConfig(); err != nil {
 				return fmt.Errorf("failed to generate dnsmasq config: %w", err)
 			}
 
-			// Start services
 			cmd.Println("Starting services...")
-			if err := ngx.Start(); err != nil {
+			if err := st.ngx.Start(); err != nil {
 				return fmt.Errorf("failed to start nginx: %w", err)
 			}
-
-			if err := dms.Start(); err != nil {
-				_ = ngx.Stop() // Rollback
+			if err := st.dms.Start(); err != nil {
+				_ = st.ngx.Stop() // rollback
 				return fmt.Errorf("failed to start dnsmasq: %w", err)
 			}
 
 			cmd.Println("✓ Services started successfully")
-			cmd.Println("  nginx listening on :80, :443")
-			cmd.Println("  dnsmasq listening on :53")
-			cmd.Printf("  Projects available at: *.%s\n", cfg.Proxy.LocalDomain)
+			cmd.Printf("  nginx listening on :%d, :%d\n", st.cfg.Nginx.HTTPPort, st.cfg.Nginx.HTTPSPort)
+			cmd.Printf("  dnsmasq listening on :%d\n", st.cfg.Dnsmasq.Port)
+			cmd.Printf("  Projects available at: *%s\n", st.cfg.Proxy.LocalDomain)
 			return nil
 		},
 	}
@@ -79,27 +51,15 @@ func NewStopCmd() *cobra.Command {
 		Short: "Stop tube services",
 		Long:  `Stop all tube proxy services.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get config path
-			configPath, _ := cmd.Flags().GetString("config")
-
-			// Load configuration
-			cfg, err := config.Load(configPath)
+			st, err := loadStack(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
-			// Create ProcessManager
-			pm, err := service.NewProcessManager(cfg.Directories.PIDs)
-			if err != nil {
-				return fmt.Errorf("failed to create process manager: %w", err)
-			}
-
-			// Stop services
 			cmd.Println("Stopping services...")
-			if err := pm.StopAll(); err != nil {
+			if err := st.pm.StopAll(); err != nil {
 				return fmt.Errorf("failed to stop services: %w", err)
 			}
-
 			cmd.Println("✓ Services stopped")
 			return nil
 		},
@@ -113,27 +73,15 @@ func NewRestartCmd() *cobra.Command {
 		Short: "Restart tube services",
 		Long:  `Restart all tube proxy services.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get config path
-			configPath, _ := cmd.Flags().GetString("config")
-
-			// Load configuration
-			cfg, err := config.Load(configPath)
+			st, err := loadStack(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
-			// Create ProcessManager
-			pm, err := service.NewProcessManager(cfg.Directories.PIDs)
-			if err != nil {
-				return fmt.Errorf("failed to create process manager: %w", err)
-			}
-
-			// Restart
 			cmd.Println("Restarting services...")
-			if err := pm.RestartAll(); err != nil {
+			if err := st.pm.RestartAll(); err != nil {
 				return fmt.Errorf("failed to restart services: %w", err)
 			}
-
 			cmd.Println("✓ Services restarted")
 			return nil
 		},
@@ -147,39 +95,23 @@ func NewStatusCmd() *cobra.Command {
 		Short: "Show service status",
 		Long:  `Show the status of all tube services.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get config path
-			configPath, _ := cmd.Flags().GetString("config")
-
-			// Load configuration
-			cfg, err := config.Load(configPath)
+			st, err := loadStack(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
-			// Create ProcessManager
-			pm, err := service.NewProcessManager(cfg.Directories.PIDs)
-			if err != nil {
-				return fmt.Errorf("failed to create process manager: %w", err)
-			}
-
-			// Get status
 			cmd.Println("Service Status:")
-
-			services := []string{"nginx", "dnsmasq"}
-			for _, svc := range services {
-				status, err := pm.Status(svc)
+			for _, svc := range []string{"nginx", "dnsmasq"} {
+				status, err := st.pm.Status(svc)
 				if err != nil {
 					status = "unknown"
 				}
-
 				indicator := "○"
-				if isRunning, _ := pm.IsRunning(svc); isRunning {
+				if running, _ := st.pm.IsRunning(svc); running {
 					indicator = "●"
 				}
-
 				cmd.Printf("  %-10s %s %s\n", svc+":", indicator, status)
 			}
-
 			return nil
 		},
 	}

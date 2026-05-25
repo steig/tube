@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,36 +11,36 @@ import (
 	"time"
 )
 
-// Start starts the named service by spawning the appropriate process
-// It supports "nginx" and "dnsmasq" services
+// Start starts the named service by spawning the appropriate process.
+// Both the in-memory mutex and a file-based flock are acquired so that two
+// independent tube processes (e.g. CLI + tube-gui) cannot double-spawn nginx.
 func (pm *ProcessManager) Start(name string) error {
-	// Check if already running
-	isRunning, err := pm.IsRunning(name)
-	if err == nil && isRunning {
+	return pm.withFileLock(name, func() error {
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+		return pm.startLocked(name)
+	})
+}
+
+func (pm *ProcessManager) startLocked(name string) error {
+	if isRunning, err := pm.isRunningLocked(name); err == nil && isRunning {
 		return fmt.Errorf("service %s is already running", name)
 	}
 
-	// Get the binary path and arguments for the service
 	binary, args, err := pm.getServiceConfig(name)
 	if err != nil {
 		return err
 	}
 
-	// Create the command
 	cmd := exec.Command(binary, args...)
-
-	// Suppress stdout/stderr for background services
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
-	// Start the process
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start %s: %w", name, err)
 	}
 
-	// Write PID file
 	if err := pm.writePID(name, cmd.Process.Pid); err != nil {
-		// Try to kill the process if we can't write the PID file
 		_ = cmd.Process.Kill()
 		return err
 	}
@@ -47,29 +48,32 @@ func (pm *ProcessManager) Start(name string) error {
 	return nil
 }
 
-// Stop stops the named service gracefully
-// It sends SIGTERM, waits a timeout, then sends SIGKILL if needed
+// Stop stops the named service gracefully.
+// Sends SIGTERM, waits 5s, then SIGKILL if the process is still alive.
 func (pm *ProcessManager) Stop(name string) error {
-	// Read the PID from file
+	return pm.withFileLock(name, func() error {
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+		return pm.stopLocked(name)
+	})
+}
+
+func (pm *ProcessManager) stopLocked(name string) error {
 	pid, err := pm.readPID(name)
 	if err != nil {
 		return err
 	}
 
-	// Find the process
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		// Clean up the stale PID file
 		_ = pm.cleanupPID(name)
 		return fmt.Errorf("service %s (pid %d) not found: %w", name, pid, err)
 	}
 
-	// Send SIGTERM for graceful shutdown
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		return fmt.Errorf("failed to send SIGTERM to %s: %w", name, err)
 	}
 
-	// Wait for process to terminate (with timeout)
 	timeout := time.After(5 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -77,22 +81,16 @@ func (pm *ProcessManager) Stop(name string) error {
 	for {
 		select {
 		case <-timeout:
-			// Process didn't terminate gracefully, force kill it
 			if err := process.Signal(syscall.SIGKILL); err != nil {
-				// Process may already be dead
 				_ = pm.cleanupPID(name)
 				return fmt.Errorf("failed to force kill %s: %w", name, err)
 			}
-			// Wait a bit for SIGKILL to take effect
 			time.Sleep(100 * time.Millisecond)
 			_ = pm.cleanupPID(name)
 			return nil
 
 		case <-ticker.C:
-			// Check if process is still running
-			// We do this by trying to send signal 0 (which doesn't kill but checks existence)
 			if err := process.Signal(syscall.Signal(0)); err != nil {
-				// Process is dead
 				_ = pm.cleanupPID(name)
 				return nil
 			}
@@ -103,21 +101,20 @@ func (pm *ProcessManager) Stop(name string) error {
 // Reload reloads the named service by sending SIGHUP
 // This works for services like nginx that support graceful reload
 func (pm *ProcessManager) Reload(name string) error {
-	// Read the PID from file
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	pid, err := pm.readPID(name)
 	if err != nil {
 		return err
 	}
 
-	// Find the process
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		// Clean up the stale PID file
 		_ = pm.cleanupPID(name)
 		return fmt.Errorf("service %s (pid %d) not found: %w", name, pid, err)
 	}
 
-	// Send SIGHUP to reload configuration
 	if err := process.Signal(syscall.SIGHUP); err != nil {
 		return fmt.Errorf("failed to send SIGHUP to %s: %w", name, err)
 	}
@@ -127,7 +124,10 @@ func (pm *ProcessManager) Reload(name string) error {
 
 // Status returns a string describing the status of the service
 func (pm *ProcessManager) Status(name string) (string, error) {
-	isRunning, err := pm.IsRunning(name)
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	isRunning, err := pm.isRunningLocked(name)
 	if err != nil {
 		return "unknown", err
 	}
@@ -142,23 +142,24 @@ func (pm *ProcessManager) Status(name string) (string, error) {
 
 // IsRunning checks if the named service is currently running
 func (pm *ProcessManager) IsRunning(name string) (bool, error) {
-	// Try to read PID file
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return pm.isRunningLocked(name)
+}
+
+func (pm *ProcessManager) isRunningLocked(name string) (bool, error) {
 	pid, err := pm.readPID(name)
 	if err != nil {
 		return false, nil // Service not running if no PID file
 	}
 
-	// Try to find the process
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		// Process doesn't exist, clean up stale PID file
 		_ = pm.cleanupPID(name)
 		return false, nil
 	}
 
-	// Check if process still exists by sending signal 0
 	if err := process.Signal(syscall.Signal(0)); err != nil {
-		// Process is dead, clean up stale PID file
 		_ = pm.cleanupPID(name)
 		return false, nil
 	}
@@ -166,58 +167,54 @@ func (pm *ProcessManager) IsRunning(name string) (bool, error) {
 	return true, nil
 }
 
-// getServiceConfig returns the binary path and arguments for a service
+// errNotRunning is returned by stopLocked when the service has no PID file.
+// Callers (StopAll) match on this with errors.Is rather than fragile string
+// comparison.
+var errNotRunning = fmt.Errorf("service not running")
+
+// getServiceConfig returns the binary + args for a service. Callers can override
+// the defaults via SetServiceConfig (e.g. dnsmasq -C path).
 func (pm *ProcessManager) getServiceConfig(name string) (string, []string, error) {
+	if cfg, ok := pm.configs[name]; ok {
+		return cfg.Binary, cfg.Args, nil
+	}
 	switch name {
 	case "nginx":
 		return "nginx", []string{"-g", "daemon off;"}, nil
-
 	case "dnsmasq":
 		return "dnsmasq", []string{}, nil
-
 	default:
 		return "", nil, fmt.Errorf("unknown service: %s", name)
 	}
 }
 
-// StopAll stops all known services
+// StopAll stops every known service. Services that aren't running are not errors.
 func (pm *ProcessManager) StopAll() error {
-	services := []string{"nginx", "dnsmasq"}
 	var errs []string
-
-	for _, service := range services {
-		if err := pm.Stop(service); err != nil {
-			// Check if it's just not running
-			if !strings.Contains(err.Error(), "is not running") {
-				errs = append(errs, fmt.Sprintf("%s: %v", service, err))
-			}
+	for _, svc := range knownServices {
+		if err := pm.Stop(svc); err != nil && !errors.Is(err, errNotRunning) {
+			errs = append(errs, fmt.Sprintf("%s: %v", svc, err))
 		}
 	}
-
 	if len(errs) > 0 {
 		return fmt.Errorf("errors stopping services:\n  - %s", strings.Join(errs, "\n  - "))
 	}
-
 	return nil
 }
 
-// StartAll starts all known services
+// StartAll starts every known service. If any service fails to start, all
+// previously-started services are rolled back.
 func (pm *ProcessManager) StartAll() error {
-	services := []string{"nginx", "dnsmasq"}
 	var errs []string
-
-	for _, service := range services {
-		if err := pm.Start(service); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", service, err))
+	for _, svc := range knownServices {
+		if err := pm.Start(svc); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", svc, err))
 		}
 	}
-
 	if len(errs) > 0 {
-		// Try to stop all services if startup failed
 		_ = pm.StopAll()
 		return fmt.Errorf("errors starting services:\n  - %s", strings.Join(errs, "\n  - "))
 	}
-
 	return nil
 }
 
@@ -235,6 +232,9 @@ func (pm *ProcessManager) RestartAll() error {
 
 // GetServicePID returns the PID of a service, or 0 if not running
 func (pm *ProcessManager) GetServicePID(name string) int {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	pid, err := pm.readPID(name)
 	if err != nil {
 		return 0

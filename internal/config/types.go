@@ -46,9 +46,11 @@ type DnsmasqConfig struct {
 	Port   int    `yaml:"port" mapstructure:"port"`
 }
 
-// TunnelConfig configures Cloudflare tunnel
+// TunnelConfig configures Cloudflare tunnel.
+// Note: tunnel feature is not yet implemented; this exists only to round-trip
+// config files that have the section.
 type TunnelConfig struct {
-	Enabled string `yaml:"enabled" mapstructure:"enabled"`
+	Enabled bool   `yaml:"enabled" mapstructure:"enabled"`
 	Binary  string `yaml:"binary" mapstructure:"binary"`
 	Name    string `yaml:"name" mapstructure:"name"`
 }

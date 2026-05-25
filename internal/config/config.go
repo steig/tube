@@ -58,6 +58,20 @@ func Load(configPath string) (*Config, error) {
 	return &cfg, nil
 }
 
+// Defaults returns a Config populated with the same defaults Load applies.
+// Use this when you need a fresh defaults-only config without touching disk
+// (e.g. interactive init when no config file exists yet).
+func Defaults() *Config {
+	v := viper.New()
+	setDefaults(v)
+	var cfg Config
+	_ = v.Unmarshal(&cfg)
+	if cfg.Projects == nil {
+		cfg.Projects = map[string]int{}
+	}
+	return &cfg
+}
+
 // setDefaults sets default values for the configuration
 func setDefaults(v *viper.Viper) {
 	homeDir := os.Getenv("HOME")

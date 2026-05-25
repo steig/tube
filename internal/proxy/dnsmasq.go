@@ -11,7 +11,7 @@ import (
 	"github.com/steig/tube/internal/service"
 )
 
-// DnsmasqManager manages dnsmasq configuration generation and lifecycle
+// DnsmasqManager manages dnsmasq configuration generation and lifecycle.
 type DnsmasqManager struct {
 	config  *config.Config
 	pm      *service.ProcessManager
@@ -19,12 +19,24 @@ type DnsmasqManager struct {
 	confDir string
 }
 
-// NewDnsmasqManager creates a new DnsmasqManager
+// NewDnsmasqManager creates a new DnsmasqManager. It also tells the
+// ProcessManager to spawn dnsmasq with -C pointing at the config tube wrote —
+// without this, dnsmasq would silently read /usr/local/etc/dnsmasq.conf
+// instead of tube's generated config.
 func NewDnsmasqManager(cfg *config.Config, pm *service.ProcessManager) (*DnsmasqManager, error) {
-	// Ensure dnsmasq config directory exists
 	if err := os.MkdirAll(cfg.Directories.Config, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create dnsmasq config directory: %w", err)
 	}
+
+	confPath := filepath.Join(cfg.Directories.Config, "dnsmasq.conf")
+	pm.SetServiceConfig("dnsmasq", service.ServiceConfig{
+		Binary: "dnsmasq",
+		// -k keeps dnsmasq in the foreground so the PID we recorded matches
+		//    the running process (otherwise it daemonizes and forks).
+		// -C points at tube's generated config so we never inherit a stale
+		//    system-wide /usr/local/etc/dnsmasq.conf.
+		Args: []string{"-k", "-C", confPath},
+	})
 
 	return &DnsmasqManager{
 		config:  cfg,
@@ -34,15 +46,13 @@ func NewDnsmasqManager(cfg *config.Config, pm *service.ProcessManager) (*Dnsmasq
 	}, nil
 }
 
-// GenerateConfig generates the dnsmasq configuration from templates
+// GenerateConfig generates the dnsmasq configuration from templates.
 func (dm *DnsmasqManager) GenerateConfig() (string, error) {
-	// Read the template
-	tmplContent, err := dm.readTemplate("dnsmasq.conf.tmpl")
+	tmplContent, err := readTemplate("dnsmasq", "dnsmasq.conf.tmpl")
 	if err != nil {
-		return "", fmt.Errorf("failed to read dnsmasq template: %w", err)
+		return "", err
 	}
 
-	// Parse and execute the template
 	tmpl, err := template.New("dnsmasq").Parse(tmplContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse dnsmasq template: %w", err)
@@ -52,68 +62,39 @@ func (dm *DnsmasqManager) GenerateConfig() (string, error) {
 	if err := tmpl.Execute(&buf, dm.config); err != nil {
 		return "", fmt.Errorf("failed to execute dnsmasq template: %w", err)
 	}
-
 	return buf.String(), nil
 }
 
-// WriteConfig writes the dnsmasq configuration to disk
+// WriteConfig writes the dnsmasq configuration to disk.
 func (dm *DnsmasqManager) WriteConfig() error {
-	config, err := dm.GenerateConfig()
+	cfg, err := dm.GenerateConfig()
 	if err != nil {
 		return err
 	}
-
 	confPath := filepath.Join(dm.confDir, "dnsmasq.conf")
-	if err := os.WriteFile(confPath, []byte(config), 0644); err != nil {
+	if err := os.WriteFile(confPath, []byte(cfg), 0644); err != nil {
 		return fmt.Errorf("failed to write dnsmasq config: %w", err)
 	}
-
 	return nil
 }
 
-// Start starts the dnsmasq service
+// Start starts the dnsmasq service.
 func (dm *DnsmasqManager) Start() error {
-	// dnsmasq will read the config file automatically
-	// We don't need to pass arguments if the file is in the expected location
 	if err := dm.pm.Start("dnsmasq"); err != nil {
 		return fmt.Errorf("failed to start dnsmasq: %w", err)
 	}
-
 	return nil
 }
 
-// Stop stops the dnsmasq service
-func (dm *DnsmasqManager) Stop() error {
-	return dm.pm.Stop("dnsmasq")
-}
+// Stop stops the dnsmasq service.
+func (dm *DnsmasqManager) Stop() error { return dm.pm.Stop("dnsmasq") }
 
-// IsRunning checks if dnsmasq is running
-func (dm *DnsmasqManager) IsRunning() (bool, error) {
-	return dm.pm.IsRunning("dnsmasq")
-}
+// Reload sends SIGHUP so dnsmasq re-reads its config without restarting,
+// avoiding a gap in name resolution.
+func (dm *DnsmasqManager) Reload() error { return dm.pm.Reload("dnsmasq") }
 
-// Status returns the status of dnsmasq
-func (dm *DnsmasqManager) Status() (string, error) {
-	return dm.pm.Status("dnsmasq")
-}
+// IsRunning checks if dnsmasq is running.
+func (dm *DnsmasqManager) IsRunning() (bool, error) { return dm.pm.IsRunning("dnsmasq") }
 
-// readTemplate reads a template file from the templates/dnsmasq directory
-func (dm *DnsmasqManager) readTemplate(filename string) (string, error) {
-	// Try multiple possible locations
-	possiblePaths := []string{
-		filepath.Join("templates", "dnsmasq", filename),
-		filepath.Join("/usr/local/etc", "tube", "dnsmasq", filename),
-		filepath.Join("/etc", "tube", "dnsmasq", filename),
-	}
-
-	var lastErr error
-	for _, path := range possiblePaths {
-		content, err := os.ReadFile(path)
-		if err == nil {
-			return string(content), nil
-		}
-		lastErr = err
-	}
-
-	return "", fmt.Errorf("failed to read template %s: %w", filename, lastErr)
-}
+// Status returns the status of dnsmasq.
+func (dm *DnsmasqManager) Status() (string, error) { return dm.pm.Status("dnsmasq") }

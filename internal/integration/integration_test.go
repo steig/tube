@@ -23,13 +23,22 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Skip if not in integration test mode
 	if os.Getenv("TUBE_INTEGRATION_TESTS") != "1" {
 		fmt.Println("Skipping integration tests. Set TUBE_INTEGRATION_TESTS=1 to run.")
 		os.Exit(0)
 	}
-
 	os.Exit(m.Run())
+}
+
+// requireBinary fails the test (does NOT skip) if the binary isn't on PATH.
+// The previous code called t.Skip on missing binaries, which meant CI silently
+// passed even when the test environment was misconfigured. If you're running
+// the integration suite (TUBE_INTEGRATION_TESTS=1), you must have the binaries.
+func requireBinary(t *testing.T, name string) {
+	t.Helper()
+	if _, err := exec.LookPath(name); err != nil {
+		t.Fatalf("required binary %q not on PATH: %v", name, err)
+	}
 }
 
 // setupIntegrationEnv creates a full test environment for integration testing
@@ -97,10 +106,7 @@ func TestIntegration_NginxLifecycle(t *testing.T) {
 	cfg, pm, cleanup := setupIntegrationEnv(t)
 	defer cleanup()
 
-	// Check nginx is installed
-	if _, err := exec.LookPath("nginx"); err != nil {
-		t.Skip("nginx not installed, skipping")
-	}
+	requireBinary(t, "nginx")
 
 	// Create NginxManager
 	nm, err := proxy.NewNginxManager(cfg, pm)
@@ -170,10 +176,7 @@ func TestIntegration_DnsmasqLifecycle(t *testing.T) {
 	cfg, pm, cleanup := setupIntegrationEnv(t)
 	defer cleanup()
 
-	// Check dnsmasq is installed
-	if _, err := exec.LookPath("dnsmasq"); err != nil {
-		t.Skip("dnsmasq not installed, skipping")
-	}
+	requireBinary(t, "dnsmasq")
 
 	// Create DnsmasqManager
 	dm, err := proxy.NewDnsmasqManager(cfg, pm)
@@ -225,13 +228,8 @@ func TestIntegration_FullServiceWorkflow(t *testing.T) {
 	cfg, pm, cleanup := setupIntegrationEnv(t)
 	defer cleanup()
 
-	// Check both services are installed
-	if _, err := exec.LookPath("nginx"); err != nil {
-		t.Skip("nginx not installed, skipping")
-	}
-	if _, err := exec.LookPath("dnsmasq"); err != nil {
-		t.Skip("dnsmasq not installed, skipping")
-	}
+	requireBinary(t, "nginx")
+	requireBinary(t, "dnsmasq")
 
 	// Create managers
 	nm, err := proxy.NewNginxManager(cfg, pm)
@@ -295,10 +293,7 @@ func TestIntegration_ProxyRequestRouting(t *testing.T) {
 	cfg, pm, cleanup := setupIntegrationEnv(t)
 	defer cleanup()
 
-	// Check nginx is installed
-	if _, err := exec.LookPath("nginx"); err != nil {
-		t.Skip("nginx not installed, skipping")
-	}
+	requireBinary(t, "nginx")
 
 	// Start a simple HTTP server to proxy to
 	go startTestServer(9000)

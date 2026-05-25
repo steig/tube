@@ -4,31 +4,30 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"syscall"
 )
 
-// ServiceManager defines the interface for managing system services
-// It provides a platform-agnostic way to start, stop, and check the status
-// of system services like nginx and dnsmasq.
-type ServiceManager interface {
-	// Start starts the named service
-	Start(name string) error
+// knownServices is the canonical list of services tube manages.
+// Add new services here and StartAll/StopAll/RestartAll pick them up automatically.
+var knownServices = []string{"nginx", "dnsmasq"}
 
-	// Stop stops the named service
-	Stop(name string) error
-
-	// Status returns the status of the named service
-	Status(name string) (string, error)
-
-	// IsRunning checks if the named service is currently running
-	IsRunning(name string) (bool, error)
+// ProcessManager manages service lifecycle by spawning processes directly
+// (not via systemd) so it can run in a per-user dev context.
+//
+// All state-mutating operations (Start, Stop, Reload, IsRunning, Status) acquire
+// mu to serialize PID-file I/O. Multiple goroutines (CLI + dashboard HTTP handlers)
+// may invoke these concurrently.
+type ProcessManager struct {
+	mu      sync.Mutex
+	pidDir  string         // Directory where PID files are stored (~/.tube/pids/)
+	configs map[string]ServiceConfig
 }
 
-// ProcessManager implements ServiceManager using direct process spawning.
-// It manages service lifecycle by spawning processes directly (not using systemd)
-// to support cross-platform development environments.
-type ProcessManager struct {
-	pidDir string // Directory where PID files are stored (~/.tube/pids/)
-	// Config would be added here later if needed
+// ServiceConfig describes how to start a single service.
+type ServiceConfig struct {
+	Binary string
+	Args   []string
 }
 
 // NewProcessManager creates a new ProcessManager with the specified PID directory
@@ -39,8 +38,39 @@ func NewProcessManager(pidDir string) (*ProcessManager, error) {
 	}
 
 	return &ProcessManager{
-		pidDir: pidDir,
+		pidDir:  pidDir,
+		configs: map[string]ServiceConfig{},
 	}, nil
+}
+
+// SetServiceConfig overrides the spawn config for a service (binary + args).
+// Callers (e.g. proxy.DnsmasqManager) use this to pass per-instance flags like
+// dnsmasq's -C config-file argument.
+func (pm *ProcessManager) SetServiceConfig(name string, cfg ServiceConfig) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.configs[name] = cfg
+}
+
+// withFileLock acquires an exclusive flock on a per-service lock file, runs fn,
+// and releases. This is what serializes Start/Stop *across separate tube
+// processes* — the in-memory mutex only protects one process's goroutines.
+//
+// flock() is advisory and POSIX-only; this works on macOS and Linux.
+func (pm *ProcessManager) withFileLock(name string, fn func() error) error {
+	lockPath := filepath.Join(pm.pidDir, name+".lock")
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open lock file: %w", err)
+	}
+	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
+	return fn()
 }
 
 // pidFilePath returns the path to the PID file for a service
@@ -51,22 +81,20 @@ func (pm *ProcessManager) pidFilePath(name string) string {
 // writePID writes the given PID to a file for the service
 func (pm *ProcessManager) writePID(name string, pid int) error {
 	pidFile := pm.pidFilePath(name)
-	content := []byte(fmt.Sprintf("%d\n", pid))
-
-	if err := os.WriteFile(pidFile, content, 0600); err != nil {
+	if err := os.WriteFile(pidFile, fmt.Appendf(nil, "%d\n", pid), 0600); err != nil {
 		return fmt.Errorf("failed to write pid file for %s: %w", name, err)
 	}
-
 	return nil
 }
 
-// readPID reads the PID from a file for the service
+// readPID reads the PID from a file for the service.
+// Returns an error wrapping errNotRunning if the PID file is absent.
 func (pm *ProcessManager) readPID(name string) (int, error) {
 	pidFile := pm.pidFilePath(name)
 	content, err := os.ReadFile(pidFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return 0, fmt.Errorf("service %s is not running (no pid file)", name)
+			return 0, fmt.Errorf("service %s: %w", name, errNotRunning)
 		}
 		return 0, fmt.Errorf("failed to read pid file for %s: %w", name, err)
 	}
@@ -89,5 +117,3 @@ func (pm *ProcessManager) cleanupPID(name string) error {
 	return nil
 }
 
-// Verify that ProcessManager implements ServiceManager
-var _ ServiceManager = (*ProcessManager)(nil)

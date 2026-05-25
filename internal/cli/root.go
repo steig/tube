@@ -10,13 +10,14 @@ import (
 func NewRootCmd(version, commit, date string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tube",
-		Short: "Local development proxy with .test domains and Cloudflare tunnels",
+		Short: "Local development proxy with .test domains",
 		Long: `Tube is a local development proxy that lets you:
 - Access local projects via .test domains (e.g., myapp.test)
-- Expose projects publicly via Cloudflare Tunnel
 - Use HTTPS with automatic certificate management
-- Monitor services via a beautiful web dashboard`,
-		Version: fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date),
+- Monitor services via a web dashboard`,
+		Version:       fmt.Sprintf("%s (commit: %s, date: %s)", version, commit, date),
+		SilenceUsage:  true,
+		SilenceErrors: false,
 	}
 
 	// Add commands

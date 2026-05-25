@@ -1,12 +1,9 @@
 package cli
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/steig/tube/internal/config"
-	"github.com/steig/tube/internal/proxy"
-	"github.com/steig/tube/internal/service"
 )
 
 // NewAddCmd creates the add command
@@ -23,49 +20,28 @@ Examples:
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			portStr := args[1]
-
-			// Get config path from flag
-			configPath, _ := cmd.Flags().GetString("config")
-
-			// Load configuration
-			cfg, err := config.Load(configPath)
-			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
-			}
-
-			// Parse port
-			port, err := ParsePort(portStr)
+			port, err := ParsePort(args[1])
 			if err != nil {
 				return err
 			}
 
-			// Create ProcessManager
-			pm, err := service.NewProcessManager(cfg.Directories.PIDs)
+			st, err := loadStack(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to create process manager: %w", err)
-			}
-
-			// Create NginxManager
-			ngx, err := proxy.NewNginxManager(cfg, pm)
-			if err != nil {
-				return fmt.Errorf("failed to create nginx manager: %w", err)
-			}
-
-			// Create DnsmasqManager
-			dms, err := proxy.NewDnsmasqManager(cfg, pm)
-			if err != nil {
-				return fmt.Errorf("failed to create dnsmasq manager: %w", err)
-			}
-
-			// Add the project
-			if err := AddProject(cfg, configPath, pm, ngx, dms, name, port); err != nil {
 				return err
 			}
 
+			if err := AddProject(st.cfg, st.configPath, st.pm, st.ngx, st.dms, name, port); err != nil {
+				return err
+			}
+
+			// strip the leading dot off LocalDomain (".test") so the URL is well-formed.
+			localTLD := strings.TrimPrefix(st.cfg.Proxy.LocalDomain, ".")
+			scheme := "http"
+			if st.cfg.SSL.Enabled {
+				scheme = "https"
+			}
 			cmd.Printf("✓ Added project '%s' on port %d\n", name, port)
-			cmd.Printf("  Local:  http://%s.%s\n", name, cfg.Proxy.LocalDomain)
-			cmd.Printf("  Public: https://%s%s.%s (when tunnel enabled)\n", cfg.TunnelPrefix, name, cfg.Domain)
+			cmd.Printf("  Local:  %s://%s.%s\n", scheme, name, localTLD)
 			return nil
 		},
 	}

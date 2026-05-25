@@ -38,10 +38,9 @@ func NewNginxManager(cfg *config.Config, pm *service.ProcessManager) (*NginxMana
 
 // GenerateConfig generates the nginx configuration from templates and projects
 func (nm *NginxManager) GenerateConfig() (string, error) {
-	// Read the main template
-	mainTmpl, err := nm.readTemplate("main.conf.tmpl")
+	mainTmpl, err := readTemplate("nginx", "main.conf.tmpl")
 	if err != nil {
-		return "", fmt.Errorf("failed to read main template: %w", err)
+		return "", err
 	}
 
 	// Parse and execute the template
@@ -60,10 +59,9 @@ func (nm *NginxManager) GenerateConfig() (string, error) {
 
 // GenerateProjectsConfig generates the projects-specific configuration
 func (nm *NginxManager) GenerateProjectsConfig() (string, error) {
-	// Read the projects template
-	projTmpl, err := nm.readTemplate("projects.conf.tmpl")
+	projTmpl, err := readTemplate("nginx", "projects.conf.tmpl")
 	if err != nil {
-		return "", fmt.Errorf("failed to read projects template: %w", err)
+		return "", err
 	}
 
 	// Create template data with generation timestamp
@@ -181,23 +179,3 @@ func (nm *NginxManager) Status() (string, error) {
 	return nm.pm.Status("nginx")
 }
 
-// readTemplate reads a template file from the templates/nginx directory
-func (nm *NginxManager) readTemplate(filename string) (string, error) {
-	// Try multiple possible locations
-	possiblePaths := []string{
-		filepath.Join("templates", "nginx", filename),
-		filepath.Join("/usr/local/etc", "tube", "nginx", filename),
-		filepath.Join("/etc", "tube", "nginx", filename),
-	}
-
-	var lastErr error
-	for _, path := range possiblePaths {
-		content, err := os.ReadFile(path)
-		if err == nil {
-			return string(content), nil
-		}
-		lastErr = err
-	}
-
-	return "", fmt.Errorf("failed to read template %s: %w", filename, lastErr)
-}

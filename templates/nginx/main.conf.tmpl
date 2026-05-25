@@ -28,9 +28,9 @@ http {
     client_max_body_size 20M;
 
     # Define upstream servers for each project
-    {{range .Projects}}
-    upstream {{.Name}} {
-        server localhost:{{.Port}};
+    {{range $name, $port := .Projects}}
+    upstream {{$name}} {
+        server localhost:{{$port}};
     }
     {{end}}
 

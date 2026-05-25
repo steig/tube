@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/steig/tube/internal/config"
 	"github.com/steig/tube/internal/ssl"
 )
 
@@ -27,52 +26,53 @@ func NewSSLCmd() *cobra.Command {
 	return cmd
 }
 
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
 // NewSSLStatusCmd creates the ssl status command
 func NewSSLStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show SSL configuration and certificate status",
-		Long:  `Display the current SSL configuration and certificate status.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configPath, _ := cmd.Flags().GetString("config")
-
-			cfg, err := config.Load(configPath)
+			cfg, _, err := loadCfg(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
 			cm, err := ssl.NewCertManager(cfg)
 			if err != nil {
-				// mkcert not installed
 				cmd.Println("SSL Status:")
-				cmd.Println("  Enabled:       ", boolToStatus(cfg.SSL.Enabled))
+				cmd.Println("  Enabled:       ", yesNo(cfg.SSL.Enabled))
 				cmd.Println("  mkcert:         not installed")
-				cmd.Println("")
+				cmd.Println()
 				cmd.Println("Install mkcert with: brew install mkcert")
 				return nil
 			}
 
-			status := cm.GetStatus()
-
+			s := cm.GetStatus()
 			cmd.Println("SSL Status:")
-			cmd.Println("  Enabled:       ", boolToStatus(status.Enabled))
-			cmd.Println("  CA Installed:  ", boolToStatus(status.CAInstalled))
-			cmd.Println("  Cert Exists:   ", boolToStatus(status.CertExists))
-			cmd.Println("  Local Domain:  ", status.LocalDomain)
-			cmd.Println("")
+			cmd.Println("  Enabled:       ", yesNo(s.Enabled))
+			cmd.Println("  CA Installed:  ", yesNo(s.CAInstalled))
+			cmd.Println("  Cert Exists:   ", yesNo(s.CertExists))
+			cmd.Println("  Local Domain:  ", s.LocalDomain)
+			cmd.Println()
 			cmd.Println("Paths:")
-			cmd.Println("  mkcert:        ", status.MkcertPath)
-			cmd.Println("  Certificate:   ", status.CertFile)
-			cmd.Println("  Private Key:   ", status.KeyFile)
+			cmd.Println("  mkcert:        ", s.MkcertPath)
+			cmd.Println("  Certificate:   ", s.CertFile)
+			cmd.Println("  Private Key:   ", s.KeyFile)
 
-			if !status.CAInstalled {
-				cmd.Println("")
+			if !s.CAInstalled {
+				cmd.Println()
 				cmd.Println("Run 'tube ssl install' to install the CA certificate")
-			} else if !status.CertExists {
-				cmd.Println("")
+			} else if !s.CertExists {
+				cmd.Println()
 				cmd.Println("Run 'tube ssl generate' to generate certificates")
 			}
-
 			return nil
 		},
 	}
@@ -83,14 +83,10 @@ func NewSSLInstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Install mkcert CA to system trust store",
-		Long: `Install the mkcert Certificate Authority to your system's trust store.
-This may require administrator privileges (sudo).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configPath, _ := cmd.Flags().GetString("config")
-
-			cfg, err := config.Load(configPath)
+			cfg, configPath, err := loadCfg(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
 			cm, err := ssl.NewCertManager(cfg)
@@ -104,20 +100,16 @@ This may require administrator privileges (sudo).`,
 			}
 
 			cmd.Println("Installing mkcert CA certificate...")
-			cmd.Println("This may require your password for sudo access.")
-			cmd.Println("")
-
 			if err := cm.InstallCA(); err != nil {
 				return fmt.Errorf("failed to install CA: %w", err)
 			}
 
-			// Update config to mark CA as installed
 			cfg.SSL.CAInstalled = true
-			if err := cfg.Save(config.ConfigPath()); err != nil {
+			if err := cfg.Save(configPath); err != nil {
 				cmd.Printf("Warning: could not save config: %v\n", err)
 			}
 
-			cmd.Println("")
+			cmd.Println()
 			cmd.Println("CA certificate installed successfully!")
 			cmd.Println("You can now generate certificates with: tube ssl generate")
 			return nil
@@ -130,14 +122,10 @@ func NewSSLGenerateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate SSL certificates",
-		Long: `Generate a wildcard SSL certificate for the local domain.
-This creates a certificate that covers all *.test domains.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configPath, _ := cmd.Flags().GetString("config")
-
-			cfg, err := config.Load(configPath)
+			cfg, configPath, err := loadCfg(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
 			cm, err := ssl.NewCertManager(cfg)
@@ -161,25 +149,23 @@ This creates a certificate that covers all *.test domains.`,
 			}
 
 			cmd.Printf("Generating wildcard certificate for *%s...\n", cfg.Proxy.LocalDomain)
-
 			certInfo, err := cm.GenerateWildcard(cfg.Proxy.LocalDomain)
 			if err != nil {
 				return fmt.Errorf("failed to generate certificate: %w", err)
 			}
 
-			// Update config with cert paths
 			cfg.SSL.CertFile = certInfo.CertFile
 			cfg.SSL.KeyFile = certInfo.KeyFile
 			cfg.SSL.Enabled = true
-			if err := cfg.Save(config.ConfigPath()); err != nil {
+			if err := cfg.Save(configPath); err != nil {
 				cmd.Printf("Warning: could not save config: %v\n", err)
 			}
 
-			cmd.Println("")
+			cmd.Println()
 			cmd.Println("Certificate generated successfully!")
 			cmd.Println("  Certificate:", certInfo.CertFile)
 			cmd.Println("  Private Key:", certInfo.KeyFile)
-			cmd.Println("")
+			cmd.Println()
 			cmd.Println("Restart services to apply: tube restart")
 			return nil
 		},
@@ -194,13 +180,10 @@ func NewSSLEnableCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable",
 		Short: "Enable HTTPS",
-		Long:  `Enable HTTPS support. Certificates must be generated first.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configPath, _ := cmd.Flags().GetString("config")
-
-			cfg, err := config.Load(configPath)
+			cfg, configPath, err := loadCfg(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
 			if cfg.SSL.Enabled {
@@ -208,7 +191,6 @@ func NewSSLEnableCmd() *cobra.Command {
 				return nil
 			}
 
-			// Check if certificates exist
 			cm, err := ssl.NewCertManager(cfg)
 			if err != nil {
 				return fmt.Errorf("mkcert not available: %w", err)
@@ -222,7 +204,6 @@ func NewSSLEnableCmd() *cobra.Command {
 					}
 					cfg.SSL.CAInstalled = true
 				}
-
 				certInfo, err := cm.GenerateWildcard(cfg.Proxy.LocalDomain)
 				if err != nil {
 					return fmt.Errorf("failed to generate certificate: %w", err)
@@ -232,7 +213,7 @@ func NewSSLEnableCmd() *cobra.Command {
 			}
 
 			cfg.SSL.Enabled = true
-			if err := cfg.Save(config.ConfigPath()); err != nil {
+			if err := cfg.Save(configPath); err != nil {
 				return fmt.Errorf("failed to save config: %w", err)
 			}
 
@@ -248,13 +229,10 @@ func NewSSLDisableCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable",
 		Short: "Disable HTTPS",
-		Long:  `Disable HTTPS support. Services will only listen on HTTP.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configPath, _ := cmd.Flags().GetString("config")
-
-			cfg, err := config.Load(configPath)
+			cfg, configPath, err := loadCfg(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
+				return err
 			}
 
 			if !cfg.SSL.Enabled {
@@ -263,7 +241,7 @@ func NewSSLDisableCmd() *cobra.Command {
 			}
 
 			cfg.SSL.Enabled = false
-			if err := cfg.Save(config.ConfigPath()); err != nil {
+			if err := cfg.Save(configPath); err != nil {
 				return fmt.Errorf("failed to save config: %w", err)
 			}
 
@@ -272,11 +250,4 @@ func NewSSLDisableCmd() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func boolToStatus(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
 }

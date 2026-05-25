@@ -3,6 +3,7 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -377,4 +378,43 @@ func TestProcessManager_IsRunning_NotRunning(t *testing.T) {
 	if _, err := os.Stat(pidFile); !os.IsNotExist(err) {
 		t.Error("IsRunning() did not clean up stale PID file")
 	}
+}
+
+// TestProcessManager_ConcurrentAccess exercises the mutex under -race.
+// It hammers IsRunning/Status/GetServicePID from many goroutines while
+// writePID rewrites the PID file. Without the mutex these would race on
+// the same PID file.
+func TestProcessManager_ConcurrentAccess(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "tube-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	pm, err := NewProcessManager(tmpDir)
+	if err != nil {
+		t.Fatalf("NewProcessManager() error = %v", err)
+	}
+
+	// Use a PID that won't exist so IsRunning returns false and cleans up.
+	if err := pm.writePID("svc", 1000000000); err != nil {
+		t.Fatalf("writePID() error = %v", err)
+	}
+
+	const goroutines = 20
+	const iterations = 50
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+			for range iterations {
+				_, _ = pm.IsRunning("svc")
+				_, _ = pm.Status("svc")
+				_ = pm.GetServicePID("svc")
+			}
+		}()
+	}
+	wg.Wait()
 }
