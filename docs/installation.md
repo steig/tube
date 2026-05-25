@@ -16,11 +16,41 @@ This guide covers all installation methods for tube.
 
 ## Quick Install
 
-### Using Homebrew (Recommended)
+### One-line install script (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh | sh
+```
+
+This downloads the latest release for your OS/arch, verifies its SHA256 against
+the published `checksums.txt`, and installs the `tube` binary to
+`/usr/local/bin`. The script is short and POSIX `sh` so you can audit it before
+piping into your shell.
+
+Override defaults via environment variables:
+
+```bash
+# Pin a specific version
+curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh | TUBE_VERSION=v0.1.0 sh
+
+# Install to ~/.local instead of /usr/local (no sudo needed)
+curl -fsSL https://raw.githubusercontent.com/steig/tube/main/scripts/install.sh | TUBE_PREFIX="$HOME/.local" sh
+```
+
+You'll still need `nginx`, `dnsmasq`, and `mkcert` installed separately
+(`brew install nginx dnsmasq mkcert`). The install script intentionally
+doesn't touch your package manager.
+
+!!! note "GUI binary"
+    The install script ships only the `tube` CLI. `tube-gui` (the macOS menu
+    bar app) needs CGO and isn't part of the release archives — build it from
+    source if you want the menu bar app.
+
+### From source with Homebrew
 
 ```bash
 # Install dependencies
-brew install go nginx dnsmasq
+brew install go nginx dnsmasq mkcert
 
 # Clone and build
 git clone https://github.com/steig/tube.git
